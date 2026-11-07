@@ -238,3 +238,42 @@ def test_scaled_decimal_result_formatted_cleanly():
     assert r2.status_code == 200
     ings = r2.json()["ingredients"]
     assert "3 tsp vanilla" in ings
+
+
+def test_scaled_fraction_quantity():
+    """Fraction quantities like '1/2 tsp salt' are scaled correctly."""
+    r = client.post(
+        "/recipes",
+        json={
+            "title": "Fraction Recipe",
+            "ingredients": ["1/2 tsp salt", "1/4 cup oil"],
+            "tags": [],
+        },
+    )
+    assert r.status_code == 200
+    rid = r.json()["id"]
+
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=2")
+    assert r2.status_code == 200
+    ings = r2.json()["ingredients"]
+    assert "1 tsp salt" in ings   # 1/2 * 2 = 1
+    assert "0.5 cup oil" in ings  # 1/4 * 2 = 0.5
+
+
+def test_scaled_number_without_unit():
+    """Quantities with no unit (e.g. '3 eggs') are scaled correctly."""
+    r = client.post(
+        "/recipes",
+        json={
+            "title": "Eggs Only",
+            "ingredients": ["3 eggs"],
+            "tags": [],
+        },
+    )
+    assert r.status_code == 200
+    rid = r.json()["id"]
+
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=2")
+    assert r2.status_code == 200
+    ings = r2.json()["ingredients"]
+    assert "6 eggs" in ings

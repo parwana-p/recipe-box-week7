@@ -149,22 +149,32 @@ def shopping_list(ids: str):
 # Task 3: Ingredient scaling
 # ---------------------------------------------------------------------------
 
-# Matches an optional leading number (int or float) followed by the rest of
-# the ingredient string, e.g. "200 g flour", "1.5 tsp salt", "eggs".
-_QTY_RE = re.compile(r"^(\d+(?:\.\d+)?)\s+(.*)")
+# Matches a leading quantity — integer, decimal, or fraction (e.g. 1/2) —
+# followed by the rest of the ingredient string.
+# Examples: "200 g flour", "1.5 tsp salt", "1/2 cup milk", "3 eggs".
+_QTY_RE = re.compile(r"^(\d+(?:[./]\d+)?)\s+(.*)")
+
+
+def _parse_quantity(qty_str: str) -> float:
+    """Parse an integer, decimal, or fraction string into a float."""
+    if "/" in qty_str:
+        num, denom = qty_str.split("/", 1)
+        return float(num) / float(denom)
+    return float(qty_str)
 
 
 def _scale_ingredient(ingredient: str, factor: float) -> str:
     """Return *ingredient* with its leading quantity multiplied by *factor*.
 
-    If the ingredient string does not start with a number the original string
-    is returned unchanged.
+    Handles integer, decimal, and fraction quantities (e.g. ``1/2 tsp salt``).
+    If the ingredient string does not start with a recognised quantity the
+    original string is returned unchanged.
     """
     m = _QTY_RE.match(ingredient)
     if not m:
         return ingredient
     qty_str, rest = m.group(1), m.group(2)
-    original = float(qty_str)
+    original = _parse_quantity(qty_str)
     scaled = original * factor
     # Format: drop the decimal point when the result is a whole number.
     if scaled == int(scaled):

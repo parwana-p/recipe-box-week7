@@ -101,3 +101,30 @@ def test_shopping_list_empty_ids_400():
     """Returns 400 when ids resolves to an empty list (commas only)."""
     r = client.get("/shopping-list?ids=,,,")
     assert r.status_code == 400
+def test_tag_filter_returns_matching_recipes():
+    """GET /recipes?tag=<tag> returns only recipes that have that tag."""
+    client.post("/recipes", json={"title": "Omelette", "ingredients": ["eggs"], "tags": ["breakfast"]})
+    client.post("/recipes", json={"title": "Pasta", "ingredients": ["pasta"], "tags": ["dinner"]})
+
+    r = client.get("/recipes?tag=breakfast")
+    assert r.status_code == 200
+    results = r.json()
+    assert len(results) > 0
+    assert all("breakfast" in rec["tags"] for rec in results)
+    assert all(rec["title"] != "Pasta" for rec in results)
+
+
+def test_tag_filter_no_match_returns_empty():
+    """GET /recipes?tag=<nonexistent> returns an empty list."""
+    r = client.get("/recipes?tag=nonexistenttag_xyz")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_no_tag_param_returns_all_recipes():
+    """GET /recipes without a tag parameter returns all recipes."""
+    client.post("/recipes", json={"title": "Soup", "ingredients": ["water"], "tags": ["lunch"]})
+    r_all = client.get("/recipes")
+    assert r_all.status_code == 200
+    titles = [rec["title"] for rec in r_all.json()]
+    assert "Soup" in titles

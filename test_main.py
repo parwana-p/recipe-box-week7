@@ -128,3 +128,113 @@ def test_no_tag_param_returns_all_recipes():
     assert r_all.status_code == 200
     titles = [rec["title"] for rec in r_all.json()]
     assert "Soup" in titles
+
+
+# ---------------------------------------------------------------------------
+# Task 3: Ingredient scaling
+# ---------------------------------------------------------------------------
+
+def test_scaled_basic_factor_2():
+    """Factor 2 doubles the leading quantity of each ingredient."""
+    r = client.post(
+        "/recipes",
+        json={
+            "title": "Simple Cake",
+            "ingredients": ["200 g flour", "100 g sugar", "2 eggs"],
+            "tags": [],
+        },
+    )
+    assert r.status_code == 200
+    rid = r.json()["id"]
+
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=2")
+    assert r2.status_code == 200
+    body = r2.json()
+    assert body["title"] == "Simple Cake"
+    assert "400 g flour" in body["ingredients"]
+    assert "200 g sugar" in body["ingredients"]
+    assert "4 eggs" in body["ingredients"]
+
+
+def test_scaled_factor_half():
+    """Factor 0.5 halves the leading quantity."""
+    r = client.post(
+        "/recipes",
+        json={
+            "title": "Halved Soup",
+            "ingredients": ["400 ml water", "50 g salt"],
+            "tags": [],
+        },
+    )
+    rid = r.json()["id"]
+
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=0.5")
+    assert r2.status_code == 200
+    ings = r2.json()["ingredients"]
+    assert "200 ml water" in ings
+    assert "25 g salt" in ings
+
+
+def test_scaled_ingredient_without_quantity():
+    """Ingredients with no leading number are returned unchanged."""
+    r = client.post(
+        "/recipes",
+        json={
+            "title": "Free-form",
+            "ingredients": ["a pinch of pepper", "100 g butter"],
+            "tags": [],
+        },
+    )
+    rid = r.json()["id"]
+
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=3")
+    assert r2.status_code == 200
+    ings = r2.json()["ingredients"]
+    assert "a pinch of pepper" in ings   # unchanged – no leading number
+    assert "300 g butter" in ings
+
+
+def test_scaled_unknown_recipe_404():
+    """Returns 404 for a recipe that does not exist."""
+    r = client.get("/recipes/99999/scaled?factor=2")
+    assert r.status_code == 404
+
+
+def test_scaled_missing_factor_422():
+    """Returns 422 when the required factor query param is omitted."""
+    r = client.post(
+        "/recipes",
+        json={"title": "Test", "ingredients": ["100 g oats"], "tags": []},
+    )
+    rid = r.json()["id"]
+    r2 = client.get(f"/recipes/{rid}/scaled")
+    assert r2.status_code == 422
+
+
+def test_scaled_factor_zero_422():
+    """Returns 422 when factor=0 (must be > 0)."""
+    r = client.post(
+        "/recipes",
+        json={"title": "Test Zero", "ingredients": ["100 g oats"], "tags": []},
+    )
+    rid = r.json()["id"]
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=0")
+    assert r2.status_code == 422
+
+
+def test_scaled_decimal_result_formatted_cleanly():
+    """Non-integer scaled quantities are formatted without trailing zeros."""
+    r = client.post(
+        "/recipes",
+        json={
+            "title": "Precise",
+            "ingredients": ["1.5 tsp vanilla"],
+            "tags": [],
+        },
+    )
+    rid = r.json()["id"]
+
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=2")
+    assert r2.status_code == 200
+    ings = r2.json()["ingredients"]
+    assert "3 tsp vanilla" in ings

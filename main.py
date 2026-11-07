@@ -11,6 +11,7 @@ Test:
     pytest
 """
 import json
+import re
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -142,3 +143,58 @@ def shopping_list(ids: str):
             deduped.append(item)
 
     return {"ingredients": deduped}
+
+
+# ---------------------------------------------------------------------------
+# Task 3: Ingredient scaling
+# ---------------------------------------------------------------------------
+
+# Matches an optional leading number (int or float) followed by the rest of
+# the ingredient string, e.g. "200 g flour", "1.5 tsp salt", "eggs".
+_QTY_RE = re.compile(r"^(\d+(?:\.\d+)?)\s+(.*)")
+
+
+def _scale_ingredient(ingredient: str, factor: float) -> str:
+    """Return *ingredient* with its leading quantity multiplied by *factor*.
+
+    If the ingredient string does not start with a number the original string
+    is returned unchanged.
+    """
+    m = _QTY_RE.match(ingredient)
+    if not m:
+        return ingredient
+    qty_str, rest = m.group(1), m.group(2)
+    original = float(qty_str)
+    scaled = original * factor
+    # Format: drop the decimal point when the result is a whole number.
+    if scaled == int(scaled):
+        scaled_str = str(int(scaled))
+    else:
+        scaled_str = f"{scaled:g}"
+    return f"{scaled_str} {rest}"
+
+
+@app.get("/recipes/{recipe_id}/scaled")
+def get_scaled_recipe(recipe_id: int, factor: float = Query(gt=0)):
+    """Return the recipe with ingredient quantities multiplied by *factor*.
+
+    Query param:
+        factor: positive number to scale ingredient quantities by.
+
+    Returns:
+        200 recipe dict with scaled ingredients
+        404 if the recipe is not found
+        422 if factor is missing or <= 0 (FastAPI validation)
+    """
+    with closing(get_db()) as conn:
+        row = conn.execute(
+            "SELECT * FROM recipes WHERE id = ?", (recipe_id,)
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="unknown recipe")
+
+    recipe = _row_to_recipe(row)
+    recipe["ingredients"] = [
+        _scale_ingredient(ing, factor) for ing in recipe["ingredients"]
+    ]
+    return recipe

@@ -93,3 +93,49 @@ def get_recipe(recipe_id: int):
     if row is None:
         raise HTTPException(status_code=404, detail="unknown recipe")
     return _row_to_recipe(row)
+
+
+@app.get("/shopping-list")
+def shopping_list(ids: str):
+    """Merge ingredients of the given recipe IDs into a de-duplicated list.
+
+    Query param:
+        ids: comma-separated integer recipe IDs, e.g. ``?ids=1,2,3``
+
+    Returns:
+        200 {"ingredients": [...]}
+        400 if `ids` is malformed (non-integer tokens, empty string)
+        404 if any id is not found in the database
+    """
+    # Validate and parse the ids query parameter
+    try:
+        id_list = [int(i.strip()) for i in ids.split(",") if i.strip()]
+        if not id_list:
+            raise ValueError("empty list")
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="malformed ids: expected comma-separated integers",
+        )
+
+    with closing(get_db()) as conn:
+        all_ingredients: list[str] = []
+        for rid in id_list:
+            row = conn.execute(
+                "SELECT ingredients FROM recipes WHERE id = ?", (rid,)
+            ).fetchone()
+            if row is None:
+                raise HTTPException(
+                    status_code=404, detail=f"unknown recipe id: {rid}"
+                )
+            all_ingredients.extend(json.loads(row["ingredients"]))
+
+    # De-duplicate while preserving first-seen insertion order
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for item in all_ingredients:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+
+    return {"ingredients": deduped}

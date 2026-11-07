@@ -277,3 +277,14 @@ def test_scaled_number_without_unit():
     assert r2.status_code == 200
     ings = r2.json()["ingredients"]
     assert "6 eggs" in ings
+
+
+def test_scaled_factor_negative_422():
+    """Returns 422 when factor is negative (must be > 0)."""
+    r = client.post(
+        "/recipes",
+        json={"title": "Test Negative", "ingredients": ["100 g oats"], "tags": []},
+    )
+    rid = r.json()["id"]
+    r2 = client.get(f"/recipes/{rid}/scaled?factor=-1")
+    assert r2.status_code == 422

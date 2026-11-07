@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recipe Box</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+    li { margin: .25rem 0; }
+    .tags { color: #666; font-size: .85em; }
+  </style>
+</head>
+<body>
+  <h1>Recipe Box</h1>
+  <form id="add">
+    <input id="title" placeholder="Recipe title" required />
+    <input id="tags" placeholder="tags, comma, separated" />
+    <button type="submit">Add</button>
+  </form>
+  <ul id="list"></ul>
+  <script>
+    async function load() {
+      const res = await fetch('/recipes');
+      const recipes = await res.json();
+      const ul = document.getElementById('list');
+      ul.innerHTML = '';
+      for (const r of recipes) {
+        const li = document.createElement('li');
+        li.textContent = r.title;
+        if (r.tags.length) {
+          const span = document.createElement('span');
+          span.className = 'tags';
+          span.textContent = ' [' + r.tags.join(', ') + ']';
+          li.appendChild(span);
+        }
+        ul.appendChild(li);
+      }
+    }
+    document.getElementById('add').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value;
+      const tags = document.getElementById('tags').value
+        .split(',').map(t => t.trim()).filter(Boolean);
+      await fetch('/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, ingredients: [], tags }),
+      });
+      e.target.reset();
+      load();
+    });
+    load();
+  </script>
+</body>
+</html>
